@@ -1,0 +1,148 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-heading: 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+    --font-pixel: 'Press Start 2P', 'Silkscreen', monospace;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: #fcf8ff;
+    color: #180065;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}
+
+/* Hard Drop Shadows & Retro Tactile Borders */
+.pixel-box-shadow {
+  box-shadow: 4px 4px 0px #180065;
+}
+
+.pixel-box-shadow-sm {
+  box-shadow: 2px 2px 0px #180065;
+}
+
+.pixel-box-shadow-lg {
+  box-shadow: 6px 6px 0px #180065;
+}
+
+.pixel-box-shadow-pink {
+  box-shadow: 4px 4px 0px #6c2040;
+}
+
+.pixel-box-shadow-mint {
+  box-shadow: 4px 4px 0px #136964;
+}
+
+.pixel-box-shadow-lavender {
+  box-shadow: 4px 4px 0px #453268;
+}
+
+.pixel-btn {
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.pixel-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0px #180065;
+}
+
+.pixel-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0px #180065;
+}
+
+.pixel-border {
+  border: 3px solid #180065;
+}
+
+.pixel-border-2 {
+  border: 2px solid #180065;
+}
+
+.pixel-border-dashed {
+  border: 3px dashed #180065;
+}
+
+/* Inset Input styling */
+.pixel-input {
+  border: 3px solid #180065;
+  box-shadow: inset 3px 3px 0px rgba(24, 0, 101, 0.08);
+}
+
+/* Striped Progress Bar Pattern */
+.striped-bar-mint {
+  background: repeating-linear-gradient(
+    -45deg,
+    #136964,
+    #136964 8px,
+    #258c85 8px,
+    #258c85 16px
+  );
+}
+
+.striped-bar-yellow {
+  background: repeating-linear-gradient(
+    -45deg,
+    #ffd54f,
+    #ffd54f 8px,
+    #ffca28 8px,
+    #ffca28 16px
+  );
+}
+
+.striped-bar-purple {
+  background: repeating-linear-gradient(
+    -45deg,
+    #9c27b0,
+    #9c27b0 8px,
+    #ba68c8 8px,
+    #ba68c8 16px
+  );
+}
+
+/* Pixel text font */
+.font-pixel {
+  font-family: 'Press Start 2P', 'Silkscreen', monospace;
+}
+
+.font-mono-pixel {
+  font-family: 'Space Mono', monospace;
+}
+
+.font-heading {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Custom retro scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0ebff;
+  border-left: 2px solid #180065;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b39ddb;
+  border: 2px solid #180065;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9575cd;
+}
+
+/* Dot grid background pattern */
+.bg-pixel-dots {
+  background-image: radial-gradient(#dcd5ff 2px, transparent 2px);
+  background-size: 20px 20px;
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Styleverse",
+  "description": "A cozy pixel-art digital closet and AI stylist companion featuring Pixie, wardrobe analytics, outfit generator, and style quests.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
