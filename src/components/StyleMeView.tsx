@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ClothingItem, UserProfile } from '../types';
 import { PixelClothingArtwork } from './PixelClothingItemArtwork';
 import { PixieExpression } from './PixieSprite';
-import { Sparkles, Wand2, RefreshCw, Check, Heart, Plus, Trash2, RotateCw } from 'lucide-react';
+import { Wand2, RotateCw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface StyleMeViewProps {
@@ -27,6 +27,8 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
   const [occasion, setOccasion] = useState('Casual Coffee Date');
   const [vibe, setVibe] = useState('Pastel Streetwear');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedScore, setGeneratedScore] = useState<number | null>(null);
+  const [pixieVerdict, setPixieVerdict] = useState('The pairing of pastel tones with chunky footwear balances the oversized aesthetic cleanly. The heart chain choker brings high-impact edge to the top silhouette.');
 
   const occasions = ['Casual Coffee Date', 'Campus Lecture', 'Night Out / Rave', 'Sunday Cozy Day', 'Summer Picnic', 'Art Gallery Walk'];
   const vibes = ['Pastel Streetwear', 'Y2K Cyber', 'Preppy Chic', 'Cozy Oversized', 'Clean Girl'];
@@ -41,11 +43,66 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
     return Math.min(score, 99);
   };
 
-  const currentScore = calculateScore();
+  const currentScore = generatedScore ?? calculateScore();
 
-  const handleAutoMatch = () => {
+  const applySelectedItems = (selectedItems: ClothingItem[]) => {
+    const tops = selectedItems.filter(i => i.category === 'Tops');
+    const bottoms = selectedItems.filter(i => i.category === 'Bottoms');
+    const shoes = selectedItems.filter(i => i.category === 'Shoes');
+    const outer = selectedItems.filter(i => i.category === 'Outerwear');
+    const acc = selectedItems.filter(i => i.category === 'Accessories' || i.category === 'Headwear');
+
+    if (tops.length) setSelectedTop(tops[0]);
+    if (bottoms.length) setSelectedBottom(bottoms[0]);
+    if (shoes.length) setSelectedShoes(shoes[0]);
+    if (outer.length) setSelectedOuter(outer[0]);
+    if (acc.length) setSelectedAcc(acc[0]);
+  };
+
+  const handleAutoMatch = async () => {
     setIsGenerating(true);
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/pixie/outfit-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          occasion,
+          vibe,
+          closetItems,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Pixie outfit suggestion failed');
+      }
+
+      const data = await response.json();
+      const selectedIds: string[] = Array.isArray(data.selectedItemIds)
+        ? data.selectedItemIds
+        : Array.isArray(data.suggestedItems)
+        ? data.suggestedItems.map((item: ClothingItem) => item.id)
+        : [];
+      const selectedItems = selectedIds
+        .map((id) => closetItems.find((item) => item.id === id))
+        .filter(Boolean) as ClothingItem[];
+
+      if (selectedItems.length === 0) {
+        throw new Error('Pixie did not return closet item IDs');
+      }
+
+      applySelectedItems(selectedItems);
+      setGeneratedScore(typeof data.score === 'number' ? Math.round(data.score) : null);
+      if (data.pixieVerdict) {
+        setPixieVerdict(data.pixieVerdict);
+      }
+
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#a4f0e9', '#d3bcfc', '#ffd9e2'],
+      });
+    } catch (error) {
       const tops = closetItems.filter(i => i.category === 'Tops');
       const bottoms = closetItems.filter(i => i.category === 'Bottoms');
       const shoes = closetItems.filter(i => i.category === 'Shoes');
@@ -57,15 +114,17 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
       if (shoes.length) setSelectedShoes(shoes[Math.floor(Math.random() * shoes.length)]);
       if (outer.length) setSelectedOuter(outer[Math.floor(Math.random() * outer.length)]);
       if (acc.length) setSelectedAcc(acc[Math.floor(Math.random() * acc.length)]);
-
-      setIsGenerating(false);
+      setGeneratedScore(null);
+      setPixieVerdict('Pixie could not reach the style engine, so she remixed your closet locally with a balanced pastel formula.');
       confetti({
         particleCount: 50,
         spread: 60,
         origin: { y: 0.6 },
         colors: ['#a4f0e9', '#d3bcfc', '#ffd9e2'],
       });
-    }, 400);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleSaveAndWear = () => {
@@ -142,7 +201,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                   <span className="font-heading font-bold text-xs text-[#180065] truncate w-full mt-1">
                     {selectedOuter.name}
                   </span>
-                  <button onClick={() => setSelectedOuter(null)} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
+                  <button onClick={() => { setSelectedOuter(null); setGeneratedScore(null); }} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
                     Remove
                   </button>
                 </div>
@@ -150,7 +209,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                 <button
                   onClick={() => {
                     const found = closetItems.find(i => i.category === 'Outerwear');
-                    if (found) setSelectedOuter(found);
+                    if (found) { setSelectedOuter(found); setGeneratedScore(null); }
                   }}
                   className="w-full h-24 border-2 border-dashed border-[#b39ddb] rounded-xl flex items-center justify-center text-xs text-[#68548d] font-bold hover:bg-[#f0ebff]"
                 >
@@ -168,7 +227,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                   <span className="font-heading font-bold text-xs text-[#180065] truncate w-full mt-1">
                     {selectedTop.name}
                   </span>
-                  <button onClick={() => setSelectedTop(null)} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
+                  <button onClick={() => { setSelectedTop(null); setGeneratedScore(null); }} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
                     Remove
                   </button>
                 </div>
@@ -176,7 +235,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                 <button
                   onClick={() => {
                     const found = closetItems.find(i => i.category === 'Tops');
-                    if (found) setSelectedTop(found);
+                    if (found) { setSelectedTop(found); setGeneratedScore(null); }
                   }}
                   className="w-full h-24 border-2 border-dashed border-[#b39ddb] rounded-xl flex items-center justify-center text-xs text-[#68548d] font-bold hover:bg-[#f0ebff]"
                 >
@@ -194,7 +253,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                   <span className="font-heading font-bold text-xs text-[#180065] truncate w-full mt-1">
                     {selectedBottom.name}
                   </span>
-                  <button onClick={() => setSelectedBottom(null)} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
+                  <button onClick={() => { setSelectedBottom(null); setGeneratedScore(null); }} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
                     Remove
                   </button>
                 </div>
@@ -202,7 +261,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                 <button
                   onClick={() => {
                     const found = closetItems.find(i => i.category === 'Bottoms');
-                    if (found) setSelectedBottom(found);
+                    if (found) { setSelectedBottom(found); setGeneratedScore(null); }
                   }}
                   className="w-full h-24 border-2 border-dashed border-[#b39ddb] rounded-xl flex items-center justify-center text-xs text-[#68548d] font-bold hover:bg-[#f0ebff]"
                 >
@@ -220,7 +279,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                   <span className="font-heading font-bold text-xs text-[#180065] truncate w-full mt-1">
                     {selectedShoes.name}
                   </span>
-                  <button onClick={() => setSelectedShoes(null)} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
+                  <button onClick={() => { setSelectedShoes(null); setGeneratedScore(null); }} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
                     Remove
                   </button>
                 </div>
@@ -228,7 +287,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                 <button
                   onClick={() => {
                     const found = closetItems.find(i => i.category === 'Shoes');
-                    if (found) setSelectedShoes(found);
+                    if (found) { setSelectedShoes(found); setGeneratedScore(null); }
                   }}
                   className="w-full h-24 border-2 border-dashed border-[#b39ddb] rounded-xl flex items-center justify-center text-xs text-[#68548d] font-bold hover:bg-[#f0ebff]"
                 >
@@ -246,7 +305,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                   <span className="font-heading font-bold text-xs text-[#180065] truncate w-full mt-1">
                     {selectedAcc.name}
                   </span>
-                  <button onClick={() => setSelectedAcc(null)} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
+                  <button onClick={() => { setSelectedAcc(null); setGeneratedScore(null); }} className="text-[10px] text-[#ba1a1a] hover:underline mt-0.5">
                     Remove
                   </button>
                 </div>
@@ -254,7 +313,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
                 <button
                   onClick={() => {
                     const found = closetItems.find(i => i.category === 'Accessories');
-                    if (found) setSelectedAcc(found);
+                    if (found) { setSelectedAcc(found); setGeneratedScore(null); }
                   }}
                   className="w-full h-24 border-2 border-dashed border-[#b39ddb] rounded-xl flex items-center justify-center text-xs text-[#68548d] font-bold hover:bg-[#f0ebff]"
                 >
@@ -291,7 +350,7 @@ export const StyleMeView: React.FC<StyleMeViewProps> = ({
             </div>
 
             <p className="font-body text-xs md:text-sm text-[#49454f] bg-[#fcf8ff] p-3.5 rounded-2xl pixel-border-2">
-              The pairing of pastel tones with chunky footwear balances the oversized aesthetic cleanly. The heart chain choker brings high-impact edge to the top silhouette.
+              {pixieVerdict}
             </p>
 
             {/* Occasion & Vibe Pickers */}

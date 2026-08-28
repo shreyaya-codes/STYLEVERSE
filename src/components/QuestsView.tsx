@@ -1,6 +1,6 @@
 import React from 'react';
 import { Quest, UserProfile } from '../types';
-import { Compass, CheckCircle2, Sparkles, Trophy, Flame } from 'lucide-react';
+import { CheckCircle2, Trophy, Flame } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface QuestsViewProps {

@@ -1,5 +1,4 @@
 import React from 'react';
-import { TrendingUp, Sparkles, Heart, Zap } from 'lucide-react';
 
 export const TrendsView: React.FC = () => {
   const trends = [

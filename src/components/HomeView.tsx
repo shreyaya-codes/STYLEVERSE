@@ -1,14 +1,14 @@
 import React from 'react';
-import { UserProfile, ClothingItem, ClosetStats } from '../types';
-import { PixieFullBody, PixieBadge } from './PixieSprite';
+import { UserProfile, ClothingItem, ClosetStats, SavedOutfit } from '../types';
+import { PixieFullBody } from './PixieSprite';
 import { PixelClothingCard } from './PixelClothingCard';
-import { Sparkles, Shirt, Wand2, Compass, ArrowRight, Flame, Heart } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { Sparkles, Shirt, ArrowRight, Flame, Heart, BookmarkCheck } from 'lucide-react';
 
 interface HomeViewProps {
   userProfile: UserProfile;
   closetItems: ClothingItem[];
   closetStats: ClosetStats;
+  savedOutfits: SavedOutfit[];
   onNavigate: (tab: any) => void;
   onClaimDailyBonus: () => void;
 }
@@ -17,6 +17,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   userProfile,
   closetItems,
   closetStats,
+  savedOutfits,
   onNavigate,
   onClaimDailyBonus,
 }) => {
@@ -124,6 +125,44 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
       </div>
+
+      {savedOutfits.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading font-extrabold text-xl text-[#180065] flex items-center gap-2">
+              <BookmarkCheck className="w-5 h-5 text-[#136964]" />
+              <span>Saved Looks</span>
+            </h2>
+            <button
+              onClick={() => onNavigate('style_me')}
+              className="font-mono-pixel text-xs text-[#68548d] hover:underline font-bold"
+            >
+              Create More →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {savedOutfits.slice(0, 3).map((outfit) => (
+              <button
+                key={outfit.id}
+                onClick={() => onNavigate('style_me')}
+                className="bg-white rounded-2xl pixel-border pixel-box-shadow p-4 text-left hover:-translate-y-0.5 transition-transform"
+              >
+                <span className="font-mono-pixel text-[10px] text-[#68548d] font-bold uppercase">
+                  {outfit.occasion}
+                </span>
+                <h3 className="font-heading font-extrabold text-base text-[#180065] mt-1 truncate">
+                  {outfit.name}
+                </h3>
+                <div className="flex items-center justify-between mt-3 font-mono-pixel text-xs">
+                  <span className="text-[#136964] font-bold">{outfit.score}/100 Synergy</span>
+                  <span className="text-[#7a7580]">{outfit.itemIds.length} pieces</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Favorite Pieces Showcase */}
       <div className="flex flex-col gap-4">

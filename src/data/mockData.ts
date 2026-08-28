@@ -1,4 +1,4 @@
-import { ClothingItem, UserProfile, Quest, ShopItem, ClosetStats } from '../types';
+import { ClothingItem, UserProfile, Quest, ShopItem } from '../types';
 
 export const initialUserProfile: UserProfile = {
   name: 'Avery',
@@ -214,16 +214,6 @@ export const initialClosetItems: ClothingItem[] = [
     resaleValue: 390,
   },
 ];
-
-export const initialClosetStats: ClosetStats = {
-  healthScore: 82,
-  totalItems: 142,
-  mostWornCategory: 'Sneakers',
-  unworn30dCount: 12,
-  sustainabilityScore: 88,
-  colorDiversity: 79,
-  averageCondition: 92,
-};
 
 export const initialQuests: Quest[] = [
   {

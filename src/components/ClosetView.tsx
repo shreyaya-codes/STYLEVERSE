@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ClothingItem, ClosetStats, Category, Rarity, AestheticVibe } from '../types';
+import { ClothingItem, ClosetStats } from '../types';
 import { PixelClothingCard } from './PixelClothingCard';
 import { PixelClothingArtwork } from './PixelClothingItemArtwork';
 import { 
@@ -8,14 +8,8 @@ import {
   Plus, 
   Sparkles, 
   RotateCw, 
-  ShieldAlert, 
-  Check, 
-  Tag, 
-  Heart,
   Wrench,
   Shirt,
-  Calendar,
-  Layers,
   ArrowRight
 } from 'lucide-react';
 
@@ -311,7 +305,7 @@ export const ClosetView: React.FC<ClosetViewProps> = ({
               <span>Pixie's Wardrobe Tip</span>
             </div>
             <p className="text-[11px] font-body text-[#49454f]">
-              You have 12 unworn pieces! Styling them into an outfit awards <strong className="text-[#136964]">+150 SP</strong> bonus.
+              You have {closetStats.unworn30dCount} unworn pieces! Styling them into an outfit awards <strong className="text-[#136964]">+150 SP</strong> bonus.
             </p>
             <button
               onClick={onLaunchUnwornRescue}

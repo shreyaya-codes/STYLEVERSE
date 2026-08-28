@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   initialUserProfile, 
   initialClosetItems, 
-  initialClosetStats, 
   initialQuests, 
   gachaPool 
 } from './data/mockData';
@@ -30,7 +29,6 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('closet');
   const [userProfile, setUserProfile] = useState<UserProfile>(initialUserProfile);
   const [closetItems, setClosetItems] = useState<ClothingItem[]>(initialClosetItems);
-  const [closetStats, setClosetStats] = useState<ClosetStats>(initialClosetStats);
   const [quests, setQuests] = useState<Quest[]>(initialQuests);
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +40,57 @@ export default function App() {
     setTimeout(() => {
       setNotificationToast(null);
     }, 3500);
+  };
+
+  const closetStats: ClosetStats = useMemo(() => {
+    const totalItems = closetItems.length;
+    const averageCondition = totalItems
+      ? Math.round(closetItems.reduce((sum, item) => sum + item.condition, 0) / totalItems)
+      : 0;
+    const unworn30dCount = closetItems.filter((item) => item.daysSinceLastWorn > 30).length;
+    const colorDiversity = totalItems
+      ? Math.round((new Set(closetItems.map((item) => item.color)).size / totalItems) * 100)
+      : 0;
+    const sustainabilityScore = totalItems
+      ? Math.max(0, Math.round(100 - (unworn30dCount / totalItems) * 35 - ((100 - averageCondition) * 0.25)))
+      : 0;
+    const categoryWearTotals = closetItems.reduce<Record<string, number>>((totals, item) => {
+      totals[item.category] = (totals[item.category] || 0) + item.wearCount;
+      return totals;
+    }, {});
+    const mostWornCategory =
+      (Object.entries(categoryWearTotals) as [string, number][])
+        .sort((a, b) => b[1] - a[1])[0]?.[0] || 'None';
+    const utilityScore = totalItems
+      ? Math.round((closetItems.filter((item) => item.wearCount > 0).length / totalItems) * 100)
+      : 0;
+    const healthScore = totalItems
+      ? Math.round((averageCondition * 0.4) + (sustainabilityScore * 0.35) + (utilityScore * 0.25))
+      : 0;
+
+    return {
+      healthScore,
+      totalItems,
+      mostWornCategory,
+      unworn30dCount,
+      sustainabilityScore,
+      colorDiversity,
+      averageCondition,
+    };
+  }, [closetItems]);
+
+  const updateQuestProgress = (questId: string, progressDelta: number) => {
+    setQuests((prev) =>
+      prev.map((quest) => {
+        if (quest.id !== questId || quest.claimed) return quest;
+        const progress = Math.min(quest.target, quest.progress + progressDelta);
+        return {
+          ...quest,
+          progress,
+          completed: progress >= quest.target,
+        };
+      })
+    );
   };
 
   const handleAddSp = (amount: number) => {
@@ -73,10 +122,6 @@ export default function App() {
 
   const handleAddItem = (newItem: ClothingItem) => {
     setClosetItems((prev) => [newItem, ...prev]);
-    setClosetStats((prev) => ({
-      ...prev,
-      totalItems: prev.totalItems + 1,
-    }));
     handleAddSp(25);
     showToast(`Added "${newItem.name}" to wardrobe!`);
   };
@@ -96,6 +141,9 @@ export default function App() {
     setClosetItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, condition: 100 } : i))
     );
+    if (item.condition < 90) {
+      updateQuestProgress('q4', 1);
+    }
     showToast(`Repaired ${item.name} to 100% condition!`);
   };
 
@@ -186,11 +234,16 @@ export default function App() {
       wornCount: 1,
     };
     setSavedOutfits((prev) => [newOutfit, ...prev]);
-    handleAddSp(50);
-    showToast(`Outfit "${outfit.name}" saved to Lookbook! (+50 SP)`);
+    if (outfit.score > 90) {
+      updateQuestProgress('q3', 1);
+    }
+    showToast(`Outfit "${outfit.name}" saved to Lookbook!`);
   };
 
   const handleWearOutfit = (itemIds: string[]) => {
+    const rescuedUnwornItem = closetItems.some(
+      (item) => itemIds.includes(item.id) && item.daysSinceLastWorn > 30
+    );
     setClosetItems((prev) =>
       prev.map((item) =>
         itemIds.includes(item.id)
@@ -198,6 +251,10 @@ export default function App() {
           : item
       )
     );
+    handleAddSp(50);
+    if (rescuedUnwornItem) {
+      updateQuestProgress('q1', 1);
+    }
     showToast('Look equipped for today! +50 SP');
   };
 
@@ -251,6 +308,7 @@ export default function App() {
               userProfile={userProfile}
               closetItems={closetItems}
               closetStats={closetStats}
+              savedOutfits={savedOutfits}
               onNavigate={(tab) => setCurrentTab(tab)}
               onClaimDailyBonus={() => handleAddSp(100)}
             />

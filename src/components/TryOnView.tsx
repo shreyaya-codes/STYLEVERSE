@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ClothingItem, UserProfile } from '../types';
 import { PixelClothingArtwork } from './PixelClothingItemArtwork';
-import { Camera, Sparkles, RefreshCw, Download, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface TryOnViewProps {
@@ -222,6 +222,29 @@ export const TryOnView: React.FC<TryOnViewProps> = ({
                     <PixelClothingArtwork imageType={bottom.imageType} color={bottom.color} size={36} />
                     <span className="font-mono-pixel text-[9px] text-[#180065] font-bold max-w-[60px] truncate">
                       {bottom.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Shoes Carousel */}
+            <div>
+              <span className="block font-mono-pixel text-xs text-[#68548d] font-bold mb-1.5">
+                Shoes:
+              </span>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {shoes.map((shoe) => (
+                  <button
+                    key={shoe.id}
+                    onClick={() => setSelectedShoesId(shoe.id)}
+                    className={`p-2 rounded-xl pixel-border-2 flex flex-col items-center gap-1 shrink-0 ${
+                      selectedShoesId === shoe.id ? 'bg-[#ffd9e2]' : 'bg-[#fcf8ff] hover:bg-[#f0ebff]'
+                    }`}
+                  >
+                    <PixelClothingArtwork imageType={shoe.imageType} color={shoe.color} size={36} />
+                    <span className="font-mono-pixel text-[9px] text-[#180065] font-bold max-w-[60px] truncate">
+                      {shoe.name}
                     </span>
                   </button>
                 ))}

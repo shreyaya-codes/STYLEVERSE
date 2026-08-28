@@ -15,8 +15,6 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   onClose,
   onAddItem,
 }) => {
-  if (!isOpen) return null;
-
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('Tops');
   const [rarity, setRarity] = useState<Rarity>('Rare');
@@ -78,6 +76,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     });
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div

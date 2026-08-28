@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PixieReaction, ChatMessage, ClothingItem, UserProfile } from '../types';
-import { PixieExpression, PixieBadge, PixieFullBody } from './PixieSprite';
+import { PixieExpression, PixieBadge } from './PixieSprite';
 import { PixelClothingArtwork } from './PixelClothingItemArtwork';
-import { Send, Sparkles, Wand2, RefreshCw, Flame, Heart, Volume2, Bot, Layers } from 'lucide-react';
+import { Send, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface AIStylistViewProps {
@@ -136,10 +136,11 @@ export const AIStylistView: React.FC<AIStylistViewProps> = ({
       origin: { y: 0.7 },
       colors: ['#a4f0e9', '#d3bcfc', '#ffd9e2', '#ffd54f'],
     });
-    onAddSp(50);
     onAddBestieXp(30);
     if (itemIds && onWearOutfitItems) {
       onWearOutfitItems(itemIds);
+    } else {
+      onAddSp(50);
     }
   };
 
