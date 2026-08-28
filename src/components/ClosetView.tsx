@@ -358,11 +358,19 @@ export const ClosetView: React.FC<ClosetViewProps> = ({
             {/* Item Showcase */}
             <div className="w-full h-48 bg-[#fcf8ff] rounded-2xl pixel-border flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 bg-pixel-dots opacity-40" />
-              <PixelClothingArtwork
-                imageType={selectedItemForModal.imageType}
-                color={selectedItemForModal.color}
-                size={120}
-              />
+              {selectedItemForModal.customImageUrl ? (
+                <img
+                  src={selectedItemForModal.customImageUrl}
+                  alt={selectedItemForModal.name}
+                  className="relative z-10 max-h-40 max-w-full object-contain rounded-xl pixel-border-2 bg-white"
+                />
+              ) : (
+                <PixelClothingArtwork
+                  imageType={selectedItemForModal.imageType}
+                  color={selectedItemForModal.color}
+                  size={120}
+                />
+              )}
             </div>
 
             {/* Stats Breakdown */}

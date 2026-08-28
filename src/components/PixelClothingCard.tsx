@@ -93,11 +93,19 @@ export const PixelClothingCard: React.FC<PixelClothingCardProps> = ({
       <div className="relative py-2 flex items-center justify-center flex-1">
         <div className="w-24 h-24 rounded-xl bg-[#fcf8ff] border-2 border-[#e5deff] flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#f0ebff]/60" />
-          <PixelClothingArtwork
-            imageType={item.imageType}
-            color={item.color}
-            size={76}
-          />
+          {item.customImageUrl ? (
+            <img
+              src={item.customImageUrl}
+              alt={item.name}
+              className="relative z-10 max-w-full max-h-full object-contain"
+            />
+          ) : (
+            <PixelClothingArtwork
+              imageType={item.imageType}
+              color={item.color}
+              size={76}
+            />
+          )}
         </div>
       </div>
 

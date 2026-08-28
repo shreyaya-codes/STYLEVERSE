@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleverseFoxLogo } from './PixieSprite';
-import { Search, Bell, Flame, Sparkles, CloudSun, Calendar, Volume2, VolumeX } from 'lucide-react';
+import { Search, Bell, Flame, Sparkles, CloudSun, Calendar, Volume2, VolumeX, LogOut } from 'lucide-react';
 import { UserProfile } from '../types';
 
 interface NavbarProps {
@@ -9,6 +9,7 @@ interface NavbarProps {
   setSearchQuery: (q: string) => void;
   onOpenNotifications?: () => void;
   onLogoClick?: () => void;
+  onSignOut?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,6 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setSearchQuery,
   onOpenNotifications,
   onLogoClick,
+  onSignOut,
 }) => {
   const [soundEnabled, setSoundEnabled] = React.useState(true);
 
@@ -107,6 +109,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
         </button>
+
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            className="p-2 bg-white pixel-border-2 rounded-xl pixel-box-shadow-sm hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4 text-[#180065]" />
+          </button>
+        )}
       </div>
     </header>
   );

@@ -7,13 +7,15 @@ import confetti from 'canvas-confetti';
 interface AddItemModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddItem: (newItem: ClothingItem) => void;
+  onAddItem: (newItem: Omit<ClothingItem, 'id'>, imageFile?: File | null) => Promise<void> | void;
+  isSaving?: boolean;
 }
 
 export const AddItemModal: React.FC<AddItemModalProps> = ({
   isOpen,
   onClose,
   onAddItem,
+  isSaving = false,
 }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('Tops');
@@ -22,6 +24,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const [imageType, setImageType] = useState<ClothingItem['imageType']>('oversized_tee');
   const [color, setColor] = useState('#d3bcfc');
   const [tagsInput, setTagsInput] = useState('Oversized, Pastel');
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   const presetColors = [
     '#d3bcfc', '#a4f0e9', '#ffd9e2', '#ffd54f', '#b39ddb', '#ff80ab', '#ffffff', '#212121'
@@ -42,17 +45,16 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     { id: 'sunglasses', label: 'Cyber Sunglasses', cat: 'Accessories' },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isSaving) return;
 
     const tags = tagsInput
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
 
-    const newItem: ClothingItem = {
-      id: `item_${Date.now()}`,
+    const newItem: Omit<ClothingItem, 'id'> = {
       name: name.trim(),
       category,
       rarity,
@@ -68,12 +70,14 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       resaleValue: Math.floor(Math.random() * 600) + 300,
     };
 
-    onAddItem(newItem);
+    await onAddItem(newItem, imageFile);
     confetti({
       particleCount: 50,
       spread: 60,
       origin: { y: 0.6 },
     });
+    setName('');
+    setImageFile(null);
     onClose();
   };
 
@@ -106,7 +110,15 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Live Preview of the Item */}
           <div className="w-full h-36 bg-[#fcf8ff] rounded-2xl pixel-border flex items-center justify-center">
-            <PixelClothingArtwork imageType={imageType} color={color} size={84} />
+            {imageFile ? (
+              <img
+                src={URL.createObjectURL(imageFile)}
+                alt="Clothing preview"
+                className="max-h-28 max-w-full object-contain rounded-xl pixel-border-2 bg-white"
+              />
+            ) : (
+              <PixelClothingArtwork imageType={imageType} color={color} size={84} />
+            )}
           </div>
 
           {/* Item Name */}
@@ -208,6 +220,19 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
             </div>
           </div>
 
+          {/* Optional Image Upload */}
+          <div>
+            <label className="block font-mono-pixel text-xs font-bold text-[#180065] mb-1">
+              Clothing Image:
+            </label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+              className="w-full px-3 py-2 bg-[#fcf8ff] pixel-border-2 rounded-xl text-xs font-mono-pixel text-[#180065] focus:outline-none"
+            />
+          </div>
+
           {/* Tags */}
           <div>
             <label className="block font-mono-pixel text-xs font-bold text-[#180065] mb-1">
@@ -224,10 +249,11 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
 
           <button
             type="submit"
+            disabled={isSaving}
             className="mt-2 w-full py-3 bg-[#a4f0e9] text-[#00201e] pixel-border rounded-xl pixel-box-shadow-mint font-mono-pixel font-bold text-xs hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all flex items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Item to Wardrobe</span>
+            <span>{isSaving ? 'Saving...' : 'Add Item to Wardrobe'}</span>
           </button>
         </form>
       </div>

@@ -1,8 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   initialUserProfile, 
-  initialClosetItems, 
-  initialQuests, 
   gachaPool 
 } from './data/mockData';
 import { 
@@ -13,6 +11,24 @@ import {
   ShopItem, 
   SavedOutfit 
 } from './types';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { getSession, signIn, signOut, signUp } from './services/authService';
+import { ensureProfile, updateProfile } from './services/profileService';
+import {
+  addClothingItem,
+  getWardrobe,
+  recordWear,
+  repairItem,
+  seedMockWardrobeIfEmpty,
+  toggleFavorite,
+} from './services/wardrobeService';
+import { getSavedOutfits, saveOutfit } from './services/outfitService';
+import {
+  claimQuest,
+  getQuests,
+  seedQuestsIfEmpty,
+  updateQuestProgress as persistQuestProgress,
+} from './services/questService';
 import { Navbar } from './components/Navbar';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { ClosetView } from './components/ClosetView';
@@ -24,16 +40,22 @@ import { QuestsView } from './components/QuestsView';
 import { TrendsView } from './components/TrendsView';
 import { HomeView } from './components/HomeView';
 import { AddItemModal } from './components/AddItemModal';
+import { AuthView } from './components/AuthView';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('closet');
   const [userProfile, setUserProfile] = useState<UserProfile>(initialUserProfile);
-  const [closetItems, setClosetItems] = useState<ClothingItem[]>(initialClosetItems);
-  const [quests, setQuests] = useState<Quest[]>(initialQuests);
+  const [closetItems, setClosetItems] = useState<ClothingItem[]>([]);
+  const [quests, setQuests] = useState<Quest[]>([]);
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [operationLoading, setOperationLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const showToast = (message: string) => {
     setNotificationToast(message);
@@ -79,105 +101,211 @@ export default function App() {
     };
   }, [closetItems]);
 
-  const updateQuestProgress = (questId: string, progressDelta: number) => {
-    setQuests((prev) =>
-      prev.map((quest) => {
-        if (quest.id !== questId || quest.claimed) return quest;
-        const progress = Math.min(quest.target, quest.progress + progressDelta);
-        return {
-          ...quest,
-          progress,
-          completed: progress >= quest.target,
-        };
-      })
-    );
+  const resetAppState = useCallback(() => {
+    setUserId(null);
+    setUserProfile(initialUserProfile);
+    setClosetItems([]);
+    setQuests([]);
+    setSavedOutfits([]);
+    setCurrentTab('closet');
+    setSearchQuery('');
+  }, []);
+
+  const loadUserData = useCallback(async (nextUserId: string) => {
+    setDataLoading(true);
+    try {
+      const profile = await ensureProfile(nextUserId);
+      const [wardrobe, outfits, loadedQuests] = await Promise.all([
+        getWardrobe(nextUserId),
+        getSavedOutfits(nextUserId),
+        getQuests(nextUserId),
+      ]);
+
+      setUserId(nextUserId);
+      setUserProfile(profile);
+      setClosetItems(wardrobe.length > 0 ? wardrobe : await seedMockWardrobeIfEmpty(nextUserId));
+      setSavedOutfits(outfits);
+      setQuests(loadedQuests.length > 0 ? loadedQuests : await seedQuestsIfEmpty(nextUserId));
+      setAuthError(null);
+    } catch (error: any) {
+      setAuthError(error.message || 'Could not load Styleverse data.');
+      showToast('Could not load Styleverse data.');
+    } finally {
+      setDataLoading(false);
+      setAuthLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      if (!isSupabaseConfigured) {
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const session = await getSession();
+        if (!mounted) return;
+        if (session?.user) {
+          await loadUserData(session.user.id);
+        } else {
+          resetAppState();
+          setAuthLoading(false);
+        }
+      } catch (error: any) {
+        if (!mounted) return;
+        setAuthError(error.message || 'Authentication failed.');
+        setAuthLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    if (!isSupabaseConfigured) return () => {
+      mounted = false;
+    };
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      if (session?.user) {
+        void loadUserData(session.user.id);
+      } else {
+        resetAppState();
+        setAuthLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, [loadUserData, resetAppState]);
+
+  const persistProfile = async (nextProfile: UserProfile) => {
+    setUserProfile(nextProfile);
+    if (!userId) return nextProfile;
+    const saved = await updateProfile(userId, nextProfile);
+    setUserProfile(saved);
+    return saved;
   };
 
-  const handleAddSp = (amount: number) => {
-    setUserProfile((prev) => ({
-      ...prev,
-      sp: prev.sp + amount,
-    }));
+  const updateQuestProgress = async (questTemplateId: string, progressDelta: number) => {
+    if (!userId) return;
+    const quest = quests.find((q) => (q.templateId || q.id) === questTemplateId);
+    if (!quest || quest.claimed || quest.completed) return;
+
+    try {
+      const updated = await persistQuestProgress(userId, quest, progressDelta);
+      setQuests((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
+    } catch (error: any) {
+      showToast(error.message || 'Quest progress could not be saved.');
+    }
+  };
+
+  const handleAddSp = async (amount: number) => {
+    await persistProfile({
+      ...userProfile,
+      sp: Math.max(0, userProfile.sp + amount),
+    });
     showToast(`+${amount} SP earned! ✨`);
   };
 
-  const handleAddBestieXp = (amount: number) => {
-    setUserProfile((prev) => {
-      const newXp = prev.bestieXp + amount;
-      if (newXp >= prev.bestieMaxXp) {
-        showToast(`🎉 Bestie Level UP! Reached Level ${prev.bestieLevel + 1}!`);
-        return {
-          ...prev,
-          bestieLevel: prev.bestieLevel + 1,
-          bestieXp: newXp - prev.bestieMaxXp,
-          bestieMaxXp: Math.floor(prev.bestieMaxXp * 1.3),
-        };
-      }
-      return {
-        ...prev,
-        bestieXp: newXp,
-      };
-    });
-  };
-
-  const handleAddItem = (newItem: ClothingItem) => {
-    setClosetItems((prev) => [newItem, ...prev]);
-    handleAddSp(25);
-    showToast(`Added "${newItem.name}" to wardrobe!`);
-  };
-
-  const handleWearItem = (item: ClothingItem) => {
-    setClosetItems((prev) =>
-      prev.map((i) =>
-        i.id === item.id
-          ? { ...i, wearCount: i.wearCount + 1, daysSinceLastWorn: 0 }
-          : i
-      )
-    );
-    handleAddSp(10);
-  };
-
-  const handleRepairItem = (item: ClothingItem) => {
-    setClosetItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, condition: 100 } : i))
-    );
-    if (item.condition < 90) {
-      updateQuestProgress('q4', 1);
-    }
-    showToast(`Repaired ${item.name} to 100% condition!`);
-  };
-
-  const handleToggleFavorite = (item: ClothingItem) => {
-    setClosetItems((prev) =>
-      prev.map((i) =>
-        i.id === item.id ? { ...i, isFavorite: !i.isFavorite } : i
-      )
-    );
-  };
-
-  const handleClaimQuest = (questId: string) => {
-    setQuests((prev) =>
-      prev.map((q) => {
-        if (q.id === questId) {
-          handleAddSp(q.rewardSp);
-          handleAddBestieXp(q.rewardBestieXp);
-          return { ...q, claimed: true };
+  const handleAddBestieXp = async (amount: number) => {
+    const newXp = userProfile.bestieXp + amount;
+    const leveledUp = newXp >= userProfile.bestieMaxXp;
+    const nextProfile = leveledUp
+      ? {
+          ...userProfile,
+          bestieLevel: userProfile.bestieLevel + 1,
+          bestieXp: newXp - userProfile.bestieMaxXp,
+          bestieMaxXp: Math.floor(userProfile.bestieMaxXp * 1.3),
         }
-        return q;
-      })
-    );
+      : {
+          ...userProfile,
+          bestieXp: newXp,
+        };
+    await persistProfile(nextProfile);
+    if (leveledUp) {
+      showToast(`🎉 Bestie Level UP! Reached Level ${nextProfile.bestieLevel}!`);
+    }
   };
 
-  const handleBuyShopItem = (item: ShopItem) => {
+  const handleAddItem = async (newItem: Omit<ClothingItem, 'id'>, imageFile?: File | null) => {
+    if (!userId) return;
+    setOperationLoading(true);
+    try {
+      const created = await addClothingItem(userId, newItem, imageFile);
+      setClosetItems((prev) => [created, ...prev]);
+      await handleAddSp(25);
+      showToast(`Added "${created.name}" to wardrobe!`);
+    } catch (error: any) {
+      showToast(error.message || 'Could not add clothing item.');
+      throw error;
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const handleWearItem = async (item: ClothingItem) => {
+    if (!userId) return;
+    try {
+      const updated = await recordWear(userId, item);
+      setClosetItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+      await handleAddSp(10);
+    } catch (error: any) {
+      showToast(error.message || 'Could not record wear.');
+    }
+  };
+
+  const handleRepairItem = async (item: ClothingItem) => {
+    if (!userId) return;
+    try {
+      const updated = await repairItem(userId, item);
+      setClosetItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+      if (item.condition < 90) {
+        await updateQuestProgress('q4', 1);
+      }
+      showToast(`Repaired ${item.name} to 100% condition!`);
+    } catch (error: any) {
+      showToast(error.message || 'Could not repair item.');
+    }
+  };
+
+  const handleToggleFavorite = async (item: ClothingItem) => {
+    if (!userId) return;
+    try {
+      const updated = await toggleFavorite(userId, item);
+      setClosetItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)));
+    } catch (error: any) {
+      showToast(error.message || 'Could not update favorite.');
+    }
+  };
+
+  const handleClaimQuest = async (questId: string) => {
+    if (!userId) return;
+    const quest = quests.find((q) => q.id === questId);
+    if (!quest || quest.claimed || !quest.completed) return;
+
+    try {
+      const updated = await claimQuest(userId, quest);
+      setQuests((prev) => prev.map((q) => (q.id === questId ? updated : q)));
+      await handleAddSp(quest.rewardSp);
+      await handleAddBestieXp(quest.rewardBestieXp);
+    } catch (error: any) {
+      showToast(error.message || 'Could not claim quest reward.');
+    }
+  };
+
+  const handleBuyShopItem = async (item: ShopItem) => {
+    if (!userId) return;
     if (userProfile.sp < item.priceSp) {
-      alert('Not enough SP!');
+      showToast('Not enough SP!');
       return;
     }
 
-    setUserProfile((prev) => ({ ...prev, sp: prev.sp - item.priceSp }));
-
-    const newItem: ClothingItem = {
-      id: `shop_${Date.now()}`,
+    const newItem: Omit<ClothingItem, 'id'> = {
       name: item.name,
       category: item.category,
       rarity: item.rarity,
@@ -193,16 +321,22 @@ export default function App() {
       resaleValue: item.priceSp * 2,
     };
 
-    setClosetItems((prev) => [newItem, ...prev]);
-    showToast(`Purchased ${item.name}! Added to closet.`);
+    try {
+      await persistProfile({ ...userProfile, sp: userProfile.sp - item.priceSp });
+      const created = await addClothingItem(userId, newItem);
+      setClosetItems((prev) => [created, ...prev]);
+      showToast(`Purchased ${item.name}! Added to closet.`);
+    } catch (error: any) {
+      showToast(error.message || 'Could not complete purchase.');
+    }
   };
 
-  const handleGachaPull = (cost: number): ClothingItem | null => {
-    setUserProfile((prev) => ({ ...prev, sp: prev.sp - cost }));
+  const handleGachaPull = async (cost: number): Promise<ClothingItem | null> => {
+    if (!userId) return null;
+    await persistProfile({ ...userProfile, sp: userProfile.sp - cost });
     const randomGacha = gachaPool[Math.floor(Math.random() * gachaPool.length)];
 
-    const newItem: ClothingItem = {
-      id: `gacha_${Date.now()}`,
+    const newItem: Omit<ClothingItem, 'id'> = {
       name: randomGacha.name,
       category: randomGacha.category,
       rarity: randomGacha.rarity,
@@ -218,13 +352,14 @@ export default function App() {
       resaleValue: randomGacha.priceSp * 2,
     };
 
-    setClosetItems((prev) => [newItem, ...prev]);
-    return newItem;
+    const created = await addClothingItem(userId, newItem);
+    setClosetItems((prev) => [created, ...prev]);
+    return created;
   };
 
-  const handleSaveOutfit = (outfit: { name: string; itemIds: string[]; occasion: string; score: number }) => {
-    const newOutfit: SavedOutfit = {
-      id: `outfit_${Date.now()}`,
+  const handleSaveOutfit = async (outfit: { name: string; itemIds: string[]; occasion: string; score: number }) => {
+    if (!userId) return;
+    const newOutfit = {
       name: outfit.name,
       occasion: outfit.occasion,
       itemIds: outfit.itemIds,
@@ -233,29 +368,90 @@ export default function App() {
       createdAt: new Date().toISOString(),
       wornCount: 1,
     };
-    setSavedOutfits((prev) => [newOutfit, ...prev]);
-    if (outfit.score > 90) {
-      updateQuestProgress('q3', 1);
+
+    try {
+      const saved = await saveOutfit(userId, newOutfit);
+      setSavedOutfits((prev) => [saved, ...prev]);
+      if (outfit.score > 90) {
+        await updateQuestProgress('q3', 1);
+      }
+      showToast(`Outfit "${outfit.name}" saved to Lookbook!`);
+    } catch (error: any) {
+      showToast(error.message || 'Could not save outfit.');
     }
-    showToast(`Outfit "${outfit.name}" saved to Lookbook!`);
   };
 
-  const handleWearOutfit = (itemIds: string[]) => {
+  const handleWearOutfit = async (itemIds: string[]) => {
+    if (!userId) return;
     const rescuedUnwornItem = closetItems.some(
       (item) => itemIds.includes(item.id) && item.daysSinceLastWorn > 30
     );
-    setClosetItems((prev) =>
-      prev.map((item) =>
-        itemIds.includes(item.id)
-          ? { ...item, wearCount: item.wearCount + 1, daysSinceLastWorn: 0 }
-          : item
-      )
-    );
-    handleAddSp(50);
-    if (rescuedUnwornItem) {
-      updateQuestProgress('q1', 1);
+
+    try {
+      const updatedItems = await Promise.all(
+        closetItems
+          .filter((item) => itemIds.includes(item.id))
+          .map((item) => recordWear(userId, item))
+      );
+      setClosetItems((prev) =>
+        prev.map((item) => updatedItems.find((updated) => updated.id === item.id) || item)
+      );
+      await handleAddSp(50);
+      if (rescuedUnwornItem) {
+        await updateQuestProgress('q1', 1);
+      }
+      showToast('Look equipped for today! +50 SP');
+    } catch (error: any) {
+      showToast(error.message || 'Could not wear outfit.');
     }
-    showToast('Look equipped for today! +50 SP');
+  };
+
+  const handleUpdateAvatar = async (newAvatar: UserProfile['avatar']) => {
+    try {
+      await persistProfile({ ...userProfile, avatar: newAvatar });
+      showToast('Avatar style updated!');
+    } catch (error: any) {
+      showToast(error.message || 'Could not update avatar.');
+    }
+  };
+
+  const handleSignIn = async (email: string, password: string) => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const user = await signIn(email, password);
+      if (user) await loadUserData(user.id);
+    } catch (error: any) {
+      setAuthError(error.message || 'Could not sign in.');
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignUp = async (email: string, password: string) => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const user = await signUp(email, password);
+      const session = await getSession();
+      if (session?.user) {
+        await loadUserData(session.user.id);
+      } else if (user) {
+        setAuthError('Check your email to confirm your account, then sign in.');
+        setAuthLoading(false);
+      }
+    } catch (error: any) {
+      setAuthError(error.message || 'Could not sign up.');
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      resetAppState();
+    } catch (error: any) {
+      showToast(error.message || 'Could not sign out.');
+    }
   };
 
   // Filtered closet items based on top-bar search query
@@ -270,6 +466,29 @@ export default function App() {
       item.tags.some((t) => t.toLowerCase().includes(q))
     );
   });
+
+  if (authLoading || dataLoading) {
+    return (
+      <div className="min-h-screen bg-[#fffdfa] bg-pixel-dots flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl pixel-border pixel-box-shadow p-6 flex flex-col items-center gap-3">
+          <span className="font-pixel text-sm text-[#180065]">STYLEVERSE</span>
+          <span className="font-mono-pixel text-xs text-[#68548d] font-bold">Loading your closet...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <AuthView
+        loading={authLoading}
+        error={authError}
+        isConfigured={isSupabaseConfigured}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fffdfa] flex flex-col selection:bg-[#d3bcfc] selection:text-[#180065]">
@@ -287,6 +506,7 @@ export default function App() {
         setSearchQuery={setSearchQuery}
         onOpenNotifications={() => setCurrentTab('quests')}
         onLogoClick={() => setCurrentTab('home')}
+        onSignOut={handleSignOut}
       />
 
       {/* Main Layout Body */}
@@ -351,8 +571,7 @@ export default function App() {
               userProfile={userProfile}
               closetItems={closetItems}
               onUpdateAvatar={(newAvatar) => {
-                setUserProfile((prev) => ({ ...prev, avatar: newAvatar }));
-                showToast('Avatar style updated!');
+                void handleUpdateAvatar(newAvatar);
               }}
             />
           )}
@@ -363,6 +582,7 @@ export default function App() {
               shopItems={gachaPool}
               onBuyItem={handleBuyShopItem}
               onGachaPull={handleGachaPull}
+              onInsufficientSp={showToast}
             />
           )}
 
@@ -383,6 +603,7 @@ export default function App() {
         isOpen={isAddItemModalOpen}
         onClose={() => setIsAddItemModalOpen(false)}
         onAddItem={handleAddItem}
+        isSaving={operationLoading}
       />
     </div>
   );

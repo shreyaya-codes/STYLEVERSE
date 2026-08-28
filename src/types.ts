@@ -81,6 +81,7 @@ export interface UserProfile {
 
 export interface Quest {
   id: string;
+  templateId?: string;
   title: string;
   description: string;
   rewardSp: number;

@@ -7,8 +7,9 @@ import confetti from 'canvas-confetti';
 interface ShopViewProps {
   userProfile: UserProfile;
   shopItems: ShopItem[];
-  onBuyItem: (item: ShopItem) => void;
-  onGachaPull: (cost: number) => ClothingItem | null;
+  onBuyItem: (item: ShopItem) => Promise<void> | void;
+  onGachaPull: (cost: number) => Promise<ClothingItem | null> | ClothingItem | null;
+  onInsufficientSp?: (message: string) => void;
 }
 
 export const ShopView: React.FC<ShopViewProps> = ({
@@ -16,28 +17,34 @@ export const ShopView: React.FC<ShopViewProps> = ({
   shopItems,
   onBuyItem,
   onGachaPull,
+  onInsufficientSp,
 }) => {
   const [pulledItem, setPulledItem] = useState<ClothingItem | null>(null);
   const [isPulling, setIsPulling] = useState(false);
 
-  const handlePull = (cost: number) => {
+  const handlePull = async (cost: number) => {
     if (userProfile.sp < cost) {
-      alert(`You need ${cost} SP to make a pull! Earn more by styling outfits or completing quests.`);
+      onInsufficientSp?.(`You need ${cost} SP to make a pull! Earn more by styling outfits or completing quests.`);
       return;
     }
 
     setIsPulling(true);
     setTimeout(() => {
-      const item = onGachaPull(cost);
-      setIsPulling(false);
-      setPulledItem(item);
+      void (async () => {
+        try {
+          const item = await onGachaPull(cost);
+          setPulledItem(item);
 
-      confetti({
-        particleCount: 100,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#ffd54f', '#ff80ab', '#a4f0e9', '#d3bcfc'],
-      });
+          confetti({
+            particleCount: 100,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: ['#ffd54f', '#ff80ab', '#a4f0e9', '#d3bcfc'],
+          });
+        } finally {
+          setIsPulling(false);
+        }
+      })();
     }, 600);
   };
 
